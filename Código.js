@@ -23,7 +23,7 @@ const CONFIG = {
     FUNCAO: 5,
     STATUS: 6,
     TENTATIVA: 7,
-    RE_VALIDADO: 8,
+    CPF_VALIDADO: 8,
     RESP_1: 9,
     RESP_2: 10,
     RESP_3: 11,
@@ -245,7 +245,7 @@ function lerAbaRespostas_() {
       cpf: dados[i][CONFIG.COL_RESPOSTAS.CPF - 1],
       status: String(dados[i][CONFIG.COL_RESPOSTAS.STATUS - 1] || '').trim().toUpperCase(),
       tentativa: dados[i][CONFIG.COL_RESPOSTAS.TENTATIVA - 1],
-      cpfValidado: dados[i][CONFIG.COL_RESPOSTAS.RE_VALIDADO - 1] === true,
+      cpfValidado: dados[i][CONFIG.COL_RESPOSTAS.CPF_VALIDADO - 1] === true,
       dados: dados[i]
     });
   }
@@ -283,7 +283,7 @@ function criarNovaPesquisa_(colaborador, tentativa) {
   novaLinha[CONFIG.COL_RESPOSTAS.FUNCAO - 1] = colaborador.funcao;
   novaLinha[CONFIG.COL_RESPOSTAS.STATUS - 1] = CONFIG.STATUS_RESPOSTA.INICIADA;
   novaLinha[CONFIG.COL_RESPOSTAS.TENTATIVA - 1] = tentativa;
-  novaLinha[CONFIG.COL_RESPOSTAS.RE_VALIDADO - 1] = false;
+  novaLinha[CONFIG.COL_RESPOSTAS.CPF_VALIDADO - 1] = false;
 
   aba.appendRow(novaLinha);
 }
@@ -366,8 +366,79 @@ function doGet(e) {
       return identificarColaborador(e.parameter.telefone);
     default:
       return jsonResponse({ sucesso: false, erro: 'Ação desconhecida: ' + acao });
+      case 'validar_cpf':
+        return validarCPF(e.parameter.telefone, e.parameter.cpf_digitado);
   }
 }
 
 
+function marcarCpfValidado_(cpfNormalizado) {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
+  const dados = aba.getDataRange().getValues();
+
+  for (let i = CONFIG.LINHA_CABECALHO; i < dados.length; i++) {
+      const cpfLinha = normalizarCPF_(dados[i][CONFIG.COL_RESPOSTAS.CPF - 1]);
+      const status = String(dados[i][CONFIG.COL_RESPOSTAS.STATUS - 1] || '').trim().toUpperCase();
+
+      if (cpfLinha === cpfNormalizado && status === CONFIG.STATUS_RESPOSTA.INICIADA) {
+          aba.getRange(i + 1, CONFIG.COL_RESPOSTAS.CPF_VALIDADO).setValue(true);
+          return true; // marcou como validado
+      }
+  }
+}
+
+function validarCPF(telefone, cpfDigitado) {
+  if (!telefone || !cpfDigitado) {
+    return jsonResponse({ sucesso: false, erro: 'Parâmetros "telefone" e "cpf_digitado" obrigatórios' });
+  }
+
+
+  const telefoneNormalizado = normalizarTelefone_(telefone);
+  const colaborador = buscarColaboradorPorTelefone_(telefoneNormalizado);
+
+  if (!colaborador) {
+    return jsonResponse({
+      sucesso: false,
+      erro: 'Colaborador não encontrado para o telefone fornecido'
+    });
+  }
+
+  const cpfDigitadoNormalizado = normalizarCPF_(cpfDigitado);
+  const cpfCadastrado = normalizarCPF_(colaborador.cpf);
+
+  if (cpfDigitadoNormalizado !== cpfCadastrado) {
+    return jsonResponse({ 
+      sucesso: true,
+      validado: false,
+      mensagem_para_enviar: CONFIG.MENSAGENS.CPF_INVALIDO
+    });
+  }
+
+  if (cpfDigitadoNormalizado === cpfCadastrado) {
+    marcarCpfValidado_(cpfCadastrado);
+  }
+
+  const reacao = aplicarTemplate_(CONFIG.MENSAGENS.CPF_CONFIRMADO, {
+    primeiroNome: extrairPrimeiroNome_(colaborador.nome)
+  });
+  return jsonResponse({
+    sucesso: true,
+    validado: true,
+    mensagem_para_enviar: montarMensagem_(reacao, 1)
+  });
+}
+
+function testarSprint() {
+  const TELEFONE_TESTE = '5511970133267'; 
+  const CPF_CORRETO = '23879589852';
+  const CPF_ERRADO = '00000000000';
+
+  Logger.log('=== CPF errado (deve dar CPF_INVALIDO) ===');
+  const r1 = validarCPF(TELEFONE_TESTE, CPF_ERRADO);
+  Logger.log(r1.getContent());
+
+  Logger.log('=== CPF correto (deve confirmar + mandar P1) ===');
+  const r2 = validarCPF(TELEFONE_TESTE, CPF_CORRETO);
+  Logger.log(r2.getContent());
+}
 
