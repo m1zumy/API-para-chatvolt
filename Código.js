@@ -442,3 +442,82 @@ function testarSprint() {
   Logger.log(r2.getContent());
 }
 
+function encontrarLinhaResposta_(cpfNormalizado) {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
+  const dados = aba.getDataRange().getValues();
+
+  for (let i = CONFIG.LINHA_CABECALHO; i < dados.length; i++) {
+    const cpfLinha = normalizarCPF_(dados[i][CONFIG.COL_RESPOSTAS.CPF - 1]);
+    const statusLinha = String(dados[i][CONFIG.COL_RESPOSTAS.STATUS - 1] || '').trim().toUpperCase();
+
+    if (cpfLinha === cpfNormalizado && statusLinha === CONFIG.STATUS_RESPOSTA.INICIADA) {
+      return { linha: i + 1, dados: dados[i] };
+    }
+  }
+  return null;
+}
+
+
+function salvarValorResposta_(numeroLinha, coluna, valor) {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
+  aba.getRange(numeroLinha, coluna).setValue(valor);
+}
+
+function marcarRespostaCompleta_(numeroLinha) {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
+  aba.getRange(numeroLinha, CONFIG.COL_RESPOSTAS.STATUS).setValue(CONFIG.STATUS_RESPOSTA.COMPLETA);
+}
+
+function salvarRespostaEAvancar(telefone, resposta) {
+  if (!telefone || resposta === undefined) {
+    return jsonResponse({ sucesso: false, erro: 'Parâmetros "telefone" e "resposta" obrigatórios' });
+  }
+
+  const telefoneNormalizado = normalizarTelefone_(telefone);
+  const colaborador = buscarColaboradorPorTelefone_(telefoneNormalizado);
+
+  if (!colaborador) {
+    return jsonResponse({
+      sucesso: false,
+      erro: 'Colaborador não encontrado para o telefone fornecido'
+    });
+  }
+
+  const cpfNormalizado = normalizarCPF_(colaborador.cpf);
+  const linhaResposta = encontrarLinhaResposta_(cpfNormalizado);
+
+  if (!linhaResposta) {
+    return jsonResponse({
+      sucesso: false,
+      erro: 'Linha de resposta não encontrada para o colaborador'
+    });
+  }
+
+  const proxima = identificarProximaPergunta_(linhaResposta);
+  if (!proxima) {
+    return jsonResponse({
+      sucesso: false,
+      erro: 'Não há próxima pergunta para responder'
+    });
+  }
+
+  if (proxima.tipo === 'sim_nao') {
+    const respostaNormalizada = normalizarSimNao_(resposta);
+    if (!respostaNormalizada) {
+      return jsonResponse({
+        sucesso: false,
+        erro: 'Resposta inválida para pergunta do tipo sim/não'
+      });
+    }
+    salvarValorResposta_(linhaResposta.linha, proxima.col, respostaNormalizada);
+
+    const reacao = respostaNormalizada === 'sim' ? proxima.reacaoSim : proxima.reacaoNao;
+    return jsonResponse({ sucesso: true, mensagem_para_enviar : montarMensagem_(reacao, proxima.numero + 1) });
+  }
+
+  salvarValorResposta_(linhaResposta.linha, proxima.col, resposta);
+  marcarRespostaCompleta_(linhaResposta.linha)
+
+  return jsonResponse({ sucesso: true, mensagem_para_enviar : proxima.reacaoAberta })
+}
+
