@@ -368,6 +368,10 @@ function doGet(e) {
       return jsonResponse({ sucesso: false, erro: 'Ação desconhecida: ' + acao });
       case 'validar_cpf':
         return validarCPF(e.parameter.telefone, e.parameter.cpf_digitado);
+      case 'salvar_resposta':
+        return salvarRespostaEAvancar(e.parameter.telefone, e.parameter.resposta);
+      default:
+        return jsonResponse({ sucesso: false, erro: 'Ação desconhecida: ' + acao})
   }
 }
 
@@ -520,4 +524,3 @@ function salvarRespostaEAvancar(telefone, resposta) {
 
   return jsonResponse({ sucesso: true, mensagem_para_enviar : proxima.reacaoAberta })
 }
-
