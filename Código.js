@@ -104,7 +104,7 @@ const CONFIG = {
         '1- Sim\n' +
         '2- Não',
         reacaoSim: 'Perfeito!',
-        reacaoNao: 'Entendi. Vamos entender melhor essa questão no final de nossa conversa'
+        reacaoNao: 'Entendi. Vamos entender melhor essa questão no final de nossa conversa' 
   },
       7: {
         numero: 7,
@@ -121,7 +121,7 @@ const CONFIG = {
         tipo: 'aberta',
         col: 16,
         texto: 'Para encerrar nossa conversa, poderia me dar mais detalhes de alguma questão sobre sua experiência, especialmente os pontos que não estão bem? Você pode enviar um áudio ou enviar por texto',
-        reacaoAberta: 'Obrigado pela participação! Suas respostas são fundamentais para oferecermos a melhor experiência de desenvolvimento aos nossos colaboradores\n\n' + 
+        reacaoAberta: 'Obrigado pela participação! Suas respostas são fundamentais para oferecermos a melhor experiência de desenvolvimento aos nossos colaboradores.  \n\n' + 
         'Ah… se quiser, falar mais sobre o tema, procure pelo de time de Recursos Humanos\n\n' + 
         'Por último, reforço que suas resposta são confidenciais e serão tratadas de forma consolidada com o objetivo específico de gerar sugestões para melhorarmos a experiência de nossos colaboradores\n' + 
         'Obrigada e um abraço!'
@@ -143,13 +143,20 @@ const CONFIG = {
 
 function normalizarSimNao_(resposta) {
   if (resposta === null || resposta === undefined) return resposta;
-  const s = String(resposta)
+  let s = String(resposta)
     .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
-    if (['sim', 's', '1', 'yes', 'y', 'si'].includes(s)) return 'sim';
-    if (['nao', 'não', 'n', '2', 'no', 'na'].includes(s)) return 'nao';
+
+  // o LLM as vezes duplica a resposta (ex: "1 1", "sim sim") -> reduz pra uma palavra so
+  const partes = s.split(/\s+/);
+  if (partes.length > 1 && partes.every(p => p === partes[0])) {
+    s = partes[0];
+  }
+
+    if (['sim', 's', '1', 'yes', 'y', 'si'].includes(s)) return '1';
+    if (['nao', 'não', 'n', '2', 'no', 'na'].includes(s)) return '0';
     return null;
 }
 
@@ -176,7 +183,7 @@ function montarMensagem_(reacao, ProximoNumero) {
   const proxima = CONFIG.PERGUNTAS[ProximoNumero];
   if (!proxima) return reacao || '';
   if (!reacao) return proxima.texto;
-  return reacao + '\n\n' + proxima.texto; 
+  return reacao + '\n' + proxima.texto; 
 }
 
 // jsonResponse
@@ -294,7 +301,7 @@ function identificarColaborador(telefone) {
   if (!telefone) return jsonResponse({ sucesso: false, erro: 'Parâmetro "telefone" obrigatório' });
 
   const telefoneNormalizado = normalizarTelefone_(telefone);
-  if (!telefoneNormalizado) return jsonResponse({ sucesso: false, erro: 'Telefone em formato inválido' });
+  if (!telefoneNormalizado) return jsonResponse({ sucesso: false, erro: 'Telefone em formato inválido', telefone_recebido: telefone });
 
   const colaborador = buscarColaboradorPorTelefone_(telefoneNormalizado);
   if (!colaborador) {
@@ -354,6 +361,9 @@ function identificarColaborador(telefone) {
 }
 
 function doGet(e) {
+  Logger.log('Parâmetros recebidos: ' + JSON.stringify(e.parameter));
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS   ).getRange('S1').setValue(JSON.stringify(e.parameter));
+
   const apiKey = e.parameter.key;
   if (apiKey !== CONFIG.API_KEY) {
     return jsonResponse({ sucesso: false, erro: 'API key inválida' });
@@ -364,14 +374,12 @@ function doGet(e) {
   switch (acao) {
     case 'identificar':
       return identificarColaborador(e.parameter.telefone);
+    case 'validar_cpf':
+      return validarCPF(e.parameter.telefone, e.parameter.cpf_digitado);
+    case 'salvar_resposta':
+      return salvarRespostaEAvancar(e.parameter.telefone, e.parameter.resposta);
     default:
       return jsonResponse({ sucesso: false, erro: 'Ação desconhecida: ' + acao });
-      case 'validar_cpf':
-        return validarCPF(e.parameter.telefone, e.parameter.cpf_digitado);
-      case 'salvar_resposta':
-        return salvarRespostaEAvancar(e.parameter.telefone, e.parameter.resposta);
-      default:
-        return jsonResponse({ sucesso: false, erro: 'Ação desconhecida: ' + acao})
   }
 }
 
@@ -515,7 +523,7 @@ function salvarRespostaEAvancar(telefone, resposta) {
     }
     salvarValorResposta_(linhaResposta.linha, proxima.col, respostaNormalizada);
 
-    const reacao = respostaNormalizada === 'sim' ? proxima.reacaoSim : proxima.reacaoNao;
+    const reacao = respostaNormalizada === '1' ? proxima.reacaoSim : proxima.reacaoNao;
     return jsonResponse({ sucesso: true, mensagem_para_enviar : montarMensagem_(reacao, proxima.numero + 1) });
   }
 
