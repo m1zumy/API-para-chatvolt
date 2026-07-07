@@ -16,6 +16,8 @@ const CONFIG = {
   },
 
   COL_RESPOSTAS: {
+    RE: 1,
+    SITUACAO_HOJE_HK: 2,
     DATA: 3,
     CPF: 4,
     NOME: 5,
@@ -315,7 +317,9 @@ function criarNovaPesquisa_(colaborador, tentativa) {
   const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
   if (!aba) throw new Error('Aba Respostas não encontrada');
 
-  const novaLinha = new Array(17).fill('');
+  const novaLinha = new Array(21).fill('');
+  novaLinha[CONFIG.COL_RESPOSTAS.RE - 1] = colaborador.re || '';
+  novaLinha[CONFIG.COL_RESPOSTAS.SITUACAO_HOJE_HK - 1] = colaborador.situacaoHojeHK || '';
   novaLinha[CONFIG.COL_RESPOSTAS.DATA - 1] = new Date();
   novaLinha[CONFIG.COL_RESPOSTAS.CPF - 1] = colaborador.cpf;
   novaLinha[CONFIG.COL_RESPOSTAS.NOME - 1] = colaborador.nome;
@@ -579,7 +583,7 @@ function salvarRespostaEAvancar(telefone, resposta) {
         });
       }
       salvarValorResposta_(linhaResposta.linha, proxima.col, respostaNormalizada);
-      // SpreadsheetApp.flush();        
+      // SpreadsheetApp.flush();
 
       const reacao = respostaNormalizada === '1' ? proxima.reacaoSim : proxima.reacaoNao;
       return jsonResponse({ sucesso: true, mensagem_para_enviar : montarMensagem_(reacao, proxima.numero + 1) });

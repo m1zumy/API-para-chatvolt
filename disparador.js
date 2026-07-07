@@ -54,7 +54,7 @@ function registrarDisparo_(abaResp, linhaResp, novoColab) {
         abaResp.getRange(linhaResp.linha, CONFIG.COL_RESPOSTAS.DATA_DISPARO) .setValue(new Date())
     }
     else {
-        const nova = new Array (19).fill ('');
+        const nova = new Array (21).fill ('');
         nova[CONFIG.COL_RESPOSTAS.DATA - 1] = new Date()
         nova[CONFIG.COL_RESPOSTAS.CPF - 1] = novoColab.cpf;
         nova[CONFIG.COL_RESPOSTAS.NOME - 1] = novoColab.nome
