@@ -16,23 +16,25 @@ const CONFIG = {
   },
 
   COL_RESPOSTAS: {
-    DATA: 1,
-    CPF: 2,
-    NOME: 3,
-    TELEFONE: 4,
-    FUNCAO: 5,
-    STATUS: 6,
-    TENTATIVA: 7,
-    CPF_VALIDADO: 8,
-    RESP_1: 9,
-    RESP_2: 10,
-    RESP_3: 11,
-    RESP_4: 12,
-    RESP_5: 13,
-    RESP_6: 14,
-    RESP_7: 15,
-    RESP_8: 16,
-    OBS: 17,
+    DATA: 3,
+    CPF: 4,
+    NOME: 5,
+    TELEFONE: 6,
+    FUNCAO: 7,
+    STATUS: 8,
+    TENTATIVA: 9,
+    CPF_VALIDADO: 10,
+    RESP_1: 11,
+    RESP_2: 12,
+    RESP_3: 13,
+    RESP_4: 14,
+    RESP_5: 15,
+    RESP_6: 16,
+    RESP_7: 17,
+    RESP_8: 18,
+    OBS: 19,
+    DISPAROS: 20,
+    DATA_DISPARO: 21,
   },
   STATUS_COLAB: { 
     CONVIDADO: 'CONVIDADO',
@@ -44,12 +46,13 @@ const CONFIG = {
     STATUS_RESPOSTA: {
       INICIADA: 'INICIADA',
       COMPLETA: 'COMPLETA',
+      EXPIRADA: 'EXPIRADA',
     },
     PERGUNTAS: {
       1: {
         numero: 1,
         tipo: 'sim_nao',
-        col: 9,
+        col: 11,
         texto: 'Vamos começar pelo posto de trabalho. Você está satisfeito em seu posto atual?\n\n' +
         '1- Sim, estou satisfeito\n' +
         '2- Não, não estou satisfeito',
@@ -59,7 +62,7 @@ const CONFIG = {
       2: {
         numero: 2,
         tipo: 'sim_nao',
-        col: 10,
+        col: 12,
         texto: 'Agora quero saber como está o deslocamento diário até o trabalho. Você está satisfeito com o deslocamento até o seu local de trabalho?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -69,7 +72,7 @@ const CONFIG = {
       3: {
         numero: 3,
         tipo: 'sim_nao',
-        col: 11,
+        col: 13,
         texto: 'Sobre a escala e os horários do posto, conseguiu se adaptar?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -79,7 +82,7 @@ const CONFIG = {
       4: {
         numero: 4,
         tipo: 'sim_nao',
-        col: 12,
+        col: 14,
         texto: 'E em relação à carga diária de trabalho, é compatível com o tempo disponível para a execução das atividades?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -89,7 +92,7 @@ const CONFIG = {
       5: {
         numero: 5,
         tipo: 'sim_nao',
-        col: 13,
+        col: 15,
         texto: 'Agora, me conta sobre uma questão muito importante! Sua liderança imediata, oferece apoio e suporte adequados no seu dia a dia de trabalho?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -99,7 +102,7 @@ const CONFIG = {
       6: {
         numero: 6,
         tipo: 'sim_nao',
-        col: 14,
+        col: 16,
         texto: 'E quanto aos benefícios, estão atendendo suas necessidades básicas (exemplo: transporte e alimentação)??\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -109,7 +112,7 @@ const CONFIG = {
       7: {
         numero: 7,
         tipo: 'sim_nao',
-        col: 15,
+        col: 17,
         texto: 'Depois de conhecer mais sobre a GR, você entende que pode crescer e continuar na empresa?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -119,7 +122,7 @@ const CONFIG = {
       8: {
         numero: 8,
         tipo: 'aberta',
-        col: 16,
+        col: 18,
         texto: 'Para encerrar nossa conversa, poderia me dar mais detalhes de alguma questão sobre sua experiência, especialmente os pontos que não estão bem? Você pode enviar um áudio ou enviar por texto',
         reacaoAberta: 'Obrigado pela participação! Suas respostas são fundamentais para oferecermos a melhor experiência de desenvolvimento aos nossos colaboradores.  \n\n' + 
         'Ah… se quiser, falar mais sobre o tema, procure pelo de time de Recursos Humanos\n\n' + 
@@ -137,6 +140,21 @@ const CONFIG = {
     JA_RESPONDEU: 'Você já respondeu esse questionario. Muito obrigado!', // Resposta para quando o colaborador responde a pergunta
   },
 
+  META_PHONE_NUMBER_ID: '1122747777593866',
+  META_TEMPLATE_NAME: 'feedback_sarha',
+  META_TEMPLATE_LANGUAGE: 'pt_BR',
+  META_TOKEN: PropertiesService.getScriptProperties().getProperty('META_TOKEN'),
+  META_TEMPLATE_NAME_REFORCO1: 'reforco1_sarha',
+  META_TEMPLATE_NAME_REFORCO2: 'reforco2_sarha',
+  
+}
+
+// helper pra remover duplicação que o LLM as vezes introduz em respostas abertas (ex: "tabom tabom", ". .")
+function removerRepeticaoLLM_(texto) {
+  if (!texto) return texto;
+  const t = String(texto).trim();
+  const match = t.match(/^(.+)\s+\1$/);
+  return match ? match[1] : t;
 }
 
 //helper para normalizar respostas de sim ou não, considerando variações comuns e acentos
@@ -210,9 +228,16 @@ function normalizarTelefone_(numero) {
   return null;
 }
 
-function normalizarCPF_(cpf) { 
+function normalizarCPF_(cpf) {
   if (!cpf) return '';
-  return String(cpf).replace(/\D/g, '').substring(0, 11);
+
+  let NormalizacaoCPF = String(cpf).replace(/\D/g, '').substring(0, 11);
+
+  while (NormalizacaoCPF.length < 11) {
+    NormalizacaoCPF = '0' + NormalizacaoCPF;
+  }
+
+  return NormalizacaoCPF;
 }
 
 
@@ -220,7 +245,10 @@ function buscarColaboradorPorTelefone_(telefoneNormalizado) {
     const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_COLABORADORES);
     if (!aba) return null;
 
-    const dados = aba.getDataRange().getValues();
+    const lastRow = aba.getLastRow();
+if (lastRow <= 1) return null;
+const dados = aba.getRange(1, 1, lastRow, aba.getLastColumn()).getValues();
+
 
     for (let i = CONFIG.LINHA_CABECALHO; i < dados.length; i++) {
       const linha = dados[i];
@@ -243,8 +271,12 @@ function lerAbaRespostas_() {
   const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
   if (!aba) return [];
 
-  const dados = aba.getDataRange().getValues();
+  const lastRow = aba.getLastRow();
+if (lastRow <= 1) return [];
+const dados = aba.getRange(1, 1, lastRow, aba.getLastColumn()).getValues();
+
   const lista = [];
+  
 
   for (let i = CONFIG.LINHA_CABECALHO; i < dados.length; i++) {
     lista.push({
@@ -268,7 +300,8 @@ function identificarProximaPergunta_(linhaResposta) {
 
   for (let num = 1; num <= 8; num++) {
     const col = CONFIG.PERGUNTAS[num].col;
-    if (!dados[col - 1]) {
+    const valor = dados[col - 1];
+    if (valor === '' || valor === null || valor === undefined) {
       return CONFIG.PERGUNTAS[num]; // achou a primeira pergunta sem resposta
     }
   }
@@ -301,7 +334,7 @@ function identificarColaborador(telefone) {
   if (!telefone) return jsonResponse({ sucesso: false, erro: 'Parâmetro "telefone" obrigatório' });
 
   const telefoneNormalizado = normalizarTelefone_(telefone);
-  if (!telefoneNormalizado) return jsonResponse({ sucesso: false, erro: 'Telefone em formato inválido', telefone_recebido: telefone });
+  if (!telefoneNormalizado) return jsonResponse({ sucesso: false, erro: 'Telefone em formato inválido' });
 
   const colaborador = buscarColaboradorPorTelefone_(telefoneNormalizado);
   if (!colaborador) {
@@ -361,9 +394,6 @@ function identificarColaborador(telefone) {
 }
 
 function doGet(e) {
-  Logger.log('Parâmetros recebidos: ' + JSON.stringify(e.parameter));
-  SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS   ).getRange('S1').setValue(JSON.stringify(e.parameter));
-
   const apiKey = e.parameter.key;
   if (apiKey !== CONFIG.API_KEY) {
     return jsonResponse({ sucesso: false, erro: 'API key inválida' });
@@ -386,7 +416,9 @@ function doGet(e) {
 
 function marcarCpfValidado_(cpfNormalizado) {
   const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
-  const dados = aba.getDataRange().getValues();
+    const lastRow = aba.getLastRow();
+    if (lastRow < CONFIG.LINHA_CABECALHO + 1) return null;
+    const dados = aba.getRange(1, 1, lastRow, aba.getLastColumn()).getValues();
 
   for (let i = CONFIG.LINHA_CABECALHO; i < dados.length; i++) {
       const cpfLinha = normalizarCPF_(dados[i][CONFIG.COL_RESPOSTAS.CPF - 1]);
@@ -456,7 +488,10 @@ function testarSprint() {
 
 function encontrarLinhaResposta_(cpfNormalizado) {
   const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
-  const dados = aba.getDataRange().getValues();
+
+  const lastRow = aba.getLastRow();
+if (lastRow <= 1) return null;
+const dados = aba.getRange(1, 1, lastRow, aba.getLastColumn()).getValues();
 
   for (let i = CONFIG.LINHA_CABECALHO; i < dados.length; i++) {
     const cpfLinha = normalizarCPF_(dados[i][CONFIG.COL_RESPOSTAS.CPF - 1]);
@@ -480,23 +515,35 @@ function marcarRespostaCompleta_(numeroLinha) {
   aba.getRange(numeroLinha, CONFIG.COL_RESPOSTAS.STATUS).setValue(CONFIG.STATUS_RESPOSTA.COMPLETA);
 }
 
+function encontrarLinhaRespostaPorTelefone_(telefoneNormalizado) {
+  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
+
+  const lastRow = aba.getLastRow();
+if (lastRow <= 1) return null;
+const dados = aba.getRange(1, 1, lastRow, aba.getLastColumn()).getValues();
+
+
+  for (let i = CONFIG.LINHA_CABECALHO; i < dados.length; i++) {
+    const telLinha = normalizarTelefone_(String(dados[i][CONFIG.COL_RESPOSTAS.TELEFONE - 1] || ''));
+    const statusLinha = String(dados[i][CONFIG.COL_RESPOSTAS.STATUS - 1] || '').trim().toUpperCase();
+    if (telLinha === telefoneNormalizado && statusLinha === CONFIG.STATUS_RESPOSTA.INICIADA) {
+      return {
+        linha: i + 1,
+        dados: dados[i],
+        cpf: normalizarCPF_(String(dados[i][CONFIG.COL_RESPOSTAS.CPF - 1] || ''))
+      };
+    }
+  }
+  return null;
+}
+
 function salvarRespostaEAvancar(telefone, resposta) {
   if (!telefone || resposta === undefined) {
     return jsonResponse({ sucesso: false, erro: 'Parâmetros "telefone" e "resposta" obrigatórios' });
   }
 
   const telefoneNormalizado = normalizarTelefone_(telefone);
-  const colaborador = buscarColaboradorPorTelefone_(telefoneNormalizado);
-
-  if (!colaborador) {
-    return jsonResponse({
-      sucesso: false,
-      erro: 'Colaborador não encontrado para o telefone fornecido'
-    });
-  }
-
-  const cpfNormalizado = normalizarCPF_(colaborador.cpf);
-  const linhaResposta = encontrarLinhaResposta_(cpfNormalizado);
+  const linhaResposta = encontrarLinhaRespostaPorTelefone_(telefoneNormalizado);
 
   if (!linhaResposta) {
     return jsonResponse({
@@ -505,30 +552,45 @@ function salvarRespostaEAvancar(telefone, resposta) {
     });
   }
 
-  const proxima = identificarProximaPergunta_(linhaResposta);
-  if (!proxima) {
-    return jsonResponse({
-      sucesso: false,
-      erro: 'Não há próxima pergunta para responder'
-    });
-  }
+  const cpfNormalizado = linhaResposta.cpf;
+  const cache = CacheService.getScriptCache();
+  const chaveLock = 'lock_' + cpfNormalizado;
 
-  if (proxima.tipo === 'sim_nao') {
-    const respostaNormalizada = normalizarSimNao_(resposta);
-    if (!respostaNormalizada) {
+  if (cache.get(chaveLock)) {
+    return jsonResponse({ sucesso: false, erro: 'Aguarde um instante e tente novamente' });
+  }
+  cache.put(chaveLock, '1', 10);
+
+  try {
+    const proxima = identificarProximaPergunta_(linhaResposta);
+    if (!proxima) {
       return jsonResponse({
         sucesso: false,
-        erro: 'Resposta inválida para pergunta do tipo sim/não'
+        erro: 'Não há próxima pergunta para responder'
       });
     }
-    salvarValorResposta_(linhaResposta.linha, proxima.col, respostaNormalizada);
 
-    const reacao = respostaNormalizada === '1' ? proxima.reacaoSim : proxima.reacaoNao;
-    return jsonResponse({ sucesso: true, mensagem_para_enviar : montarMensagem_(reacao, proxima.numero + 1) });
+    if (proxima.tipo === 'sim_nao') {
+      const respostaNormalizada = normalizarSimNao_(resposta);
+      if (!respostaNormalizada) {
+        return jsonResponse({
+          sucesso: true,
+          mensagem_para_enviar: CONFIG.MENSAGENS.RESPOSTA_INVALIDA_SIM_NAO
+        });
+      }
+      salvarValorResposta_(linhaResposta.linha, proxima.col, respostaNormalizada);
+      // SpreadsheetApp.flush();        
+
+      const reacao = respostaNormalizada === '1' ? proxima.reacaoSim : proxima.reacaoNao;
+      return jsonResponse({ sucesso: true, mensagem_para_enviar : montarMensagem_(reacao, proxima.numero + 1) });
+    }
+
+    salvarValorResposta_(linhaResposta.linha, proxima.col, removerRepeticaoLLM_(resposta));
+    marcarRespostaCompleta_(linhaResposta.linha);
+    // SpreadsheetApp.flush();
+
+    return jsonResponse({ sucesso: true, mensagem_para_enviar : proxima.reacaoAberta })
+  } finally {
+    cache.remove(chaveLock);
   }
-
-  salvarValorResposta_(linhaResposta.linha, proxima.col, resposta);
-  marcarRespostaCompleta_(linhaResposta.linha)
-
-  return jsonResponse({ sucesso: true, mensagem_para_enviar : proxima.reacaoAberta })
 }
