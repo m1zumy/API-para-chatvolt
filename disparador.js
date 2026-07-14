@@ -41,7 +41,8 @@ function buscarLinhaRespostaParaDisparo_(dadosResp, cpfNormalizado) {
                 linha: i + 1,
                 cpfValidado: dadosResp[i][CONFIG.COL_RESPOSTAS.CPF_VALIDADO - 1] === true,
                 disparos: Number(dadosResp[i][CONFIG.COL_RESPOSTAS.DISPAROS - 1] || 0),
-                dataDisparo: dadosResp[i][CONFIG.COL_RESPOSTAS.DATA_DISPARO - 1] || null
+                dataDisparo: dadosResp[i][CONFIG.COL_RESPOSTAS.DATA_DISPARO - 1] || null,
+                dados: dadosResp[i],
             }
         }
         }
@@ -54,7 +55,7 @@ function registrarDisparo_(abaResp, linhaResp, novoColab) {
         abaResp.getRange(linhaResp.linha, CONFIG.COL_RESPOSTAS.DATA_DISPARO) .setValue(new Date())
     }
     else {
-        const nova = new Array (21).fill ('');
+        const nova = new Array (23).fill ('');
         nova[CONFIG.COL_RESPOSTAS.DATA - 1] = new Date()
         nova[CONFIG.COL_RESPOSTAS.CPF - 1] = novoColab.cpf;
         nova[CONFIG.COL_RESPOSTAS.NOME - 1] = novoColab.nome
@@ -131,5 +132,32 @@ function dispararPesquisas() {
         if (enviou) registrarDisparo_(abaResp, linhaResp, null);
       }
         }
+        // travou em alguma pergunta depois de validar o CPF: reforça e, se continuar sem resposta,
+        // marca como completo (travou na P8) ou incompleto (travou antes da P8)
+if (linhaResp && linhaResp.cpfValidado) {
+    const proximaPergunta = identificarProximaPergunta_({ dados: linhaResp.dados });
+    if (proximaPergunta) {
+        const statusFinal = proximaPergunta.numero === 8 ? CONFIG.STATUS_RESPOSTA.COMPLETA : CONFIG.STATUS_RESPOSTA.INCOMPLETA;
+
+        if (linhaResp.disparos >= 3) {
+            abaResp.getRange(linhaResp.linha, CONFIG.COL_RESPOSTAS.STATUS).setValue(statusFinal);
+            if (statusFinal === CONFIG.STATUS_RESPOSTA.COMPLETA) {
+                abaColab.getRange(i + 1, CONFIG.COL_COLABORADORES.STATUS).setValue(CONFIG.STATUS_COLAB.COMPLETA)
+            }
+            continue
+        }
+        const dataUltimo = linhaResp.dataDisparo ? new Date(linhaResp.dataDisparo) : null;
+        if (dataUltimo) dataUltimo.setHours(0, 0, 0, 0);
+        const diasDesdeUltimo = dataUltimo ? Math.round((hoje - dataUltimo) / (1000 * 60 * 60 * 24)) : 999;
+
+        if (diasDesdeUltimo >= 1) {
+            const nomeTemplate = linhaResp.disparos === 1 ? CONFIG.META_TEMPLATE_NAME_REFORCO1 : CONFIG.META_TEMPLATE_NAME_REFORCO2
+            const primeiroNome = extrairPrimeiroNome_(linha[CONFIG.COL_COLABORADORES.NOME - 1])
+            const enviou = enviarTemplateWhatsApp_(telefone, nomeTemplate, primeiroNome);
+            if (enviou) registrarDisparo_(abaResp, linhaResp, null);
+        }
+    }
+}
+
     }
 }

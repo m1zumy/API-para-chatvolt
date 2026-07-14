@@ -16,27 +16,27 @@ const CONFIG = {
   },
 
   COL_RESPOSTAS: {
-    RE: 1,
-    SITUACAO_HOJE_HK: 2,
-    DATA: 3,
-    CPF: 4,
-    NOME: 5,
-    TELEFONE: 6,
-    FUNCAO: 7,
-    STATUS: 8,
-    TENTATIVA: 9,
-    CPF_VALIDADO: 10,
-    RESP_1: 11,
-    RESP_2: 12,
-    RESP_3: 13,
-    RESP_4: 14,
-    RESP_5: 15,
-    RESP_6: 16,
-    RESP_7: 17,
-    RESP_8: 18,
-    OBS: 19,
-    DISPAROS: 20,
-    DATA_DISPARO: 21,
+    RE: 2,
+    SITUACAO_HOJE_HK: 3,
+    DATA: 4,
+    CPF: 5,
+    NOME: 6,
+    TELEFONE: 7,
+    FUNCAO: 8,
+    STATUS: 9,
+    TENTATIVA: 10,
+    CPF_VALIDADO: 11,
+    RESP_1: 12,
+    RESP_2: 13,
+    RESP_3: 14,
+    RESP_4: 15,
+    RESP_5: 16,
+    RESP_6: 17,
+    RESP_7: 18,
+    RESP_8: 19,
+    OBS: 20,
+    DISPAROS: 21,
+    DATA_DISPARO: 22,
   },
   STATUS_COLAB: { 
     CONVIDADO: 'CONVIDADO',
@@ -48,13 +48,14 @@ const CONFIG = {
     STATUS_RESPOSTA: {
       INICIADA: 'INICIADA',
       COMPLETA: 'COMPLETA',
+      INCOMPLETA: 'INCOMPLETA',
       EXPIRADA: 'EXPIRADA',
     },
     PERGUNTAS: {
       1: {
         numero: 1,
         tipo: 'sim_nao',
-        col: 11,
+        col: 12,
         texto: 'Vamos começar pelo posto de trabalho. Você está satisfeito em seu posto atual?\n\n' +
         '1- Sim, estou satisfeito\n' +
         '2- Não, não estou satisfeito',
@@ -64,7 +65,7 @@ const CONFIG = {
       2: {
         numero: 2,
         tipo: 'sim_nao',
-        col: 12,
+        col: 13,
         texto: 'Agora quero saber como está o deslocamento diário até o trabalho. Você está satisfeito com o deslocamento até o seu local de trabalho?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -74,7 +75,7 @@ const CONFIG = {
       3: {
         numero: 3,
         tipo: 'sim_nao',
-        col: 13,
+        col: 14,
         texto: 'Sobre a escala e os horários do posto, conseguiu se adaptar?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -84,7 +85,7 @@ const CONFIG = {
       4: {
         numero: 4,
         tipo: 'sim_nao',
-        col: 14,
+        col: 15,
         texto: 'E em relação à carga diária de trabalho, é compatível com o tempo disponível para a execução das atividades?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -94,7 +95,7 @@ const CONFIG = {
       5: {
         numero: 5,
         tipo: 'sim_nao',
-        col: 15,
+        col: 16,
         texto: 'Agora, me conta sobre uma questão muito importante! Sua liderança imediata, oferece apoio e suporte adequados no seu dia a dia de trabalho?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -104,7 +105,7 @@ const CONFIG = {
       6: {
         numero: 6,
         tipo: 'sim_nao',
-        col: 16,
+        col: 17,
         texto: 'E quanto aos benefícios, estão atendendo suas necessidades básicas (exemplo: transporte e alimentação)??\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -114,7 +115,7 @@ const CONFIG = {
       7: {
         numero: 7,
         tipo: 'sim_nao',
-        col: 17,
+        col: 18,
         texto: 'Depois de conhecer mais sobre a GR, você entende que pode crescer e continuar na empresa?\n\n' +
         '1- Sim\n' +
         '2- Não',
@@ -124,7 +125,7 @@ const CONFIG = {
       8: {
         numero: 8,
         tipo: 'aberta',
-        col: 18,
+        col: 19,
         texto: 'Para encerrar nossa conversa, poderia me dar mais detalhes de alguma questão sobre sua experiência, especialmente os pontos que não estão bem? Você pode enviar um áudio ou enviar por texto',
         reacaoAberta: 'Obrigado pela participação! Suas respostas são fundamentais para oferecermos a melhor experiência de desenvolvimento aos nossos colaboradores.  \n\n' + 
         'Ah… se quiser, falar mais sobre o tema, procure pelo de time de Recursos Humanos\n\n' + 
@@ -218,7 +219,14 @@ function normalizarTelefone_(numero) {
   let limpo = String(numero).replace(/\D/g, '');
 
   if (limpo.length === 13 && limpo.startsWith('55')) return limpo; // já tem código do país
-  if (limpo.length === 12 && limpo.startsWith('55')) return limpo; // já tem código do país, mas falta um dígito
+  if (limpo.length === 12 && limpo.startsWith('55')) {
+    const ddd = limpo.substring(2, 4);
+    const numeroLocal = limpo.substring(4);
+    if (['6', '7', '8', '9'].includes(numeroLocal.charAt(0))) {
+      return '55' + ddd + '9' + numeroLocal; // adiciona o 9 que faltava
+    }
+    return limpo; // fixo de 8 dígitos, não leva 9 mesmo
+  }
   if (limpo.length === 11) return  '55' +limpo; // tem código do país e o número completo
   if (limpo.length === 10) {
     const numero8 = limpo.substring(2);
@@ -317,7 +325,7 @@ function criarNovaPesquisa_(colaborador, tentativa) {
   const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_RESPOSTAS);
   if (!aba) throw new Error('Aba Respostas não encontrada');
 
-  const novaLinha = new Array(21).fill('');
+  const novaLinha = new Array(23).fill('');
   novaLinha[CONFIG.COL_RESPOSTAS.RE - 1] = colaborador.re || '';
   novaLinha[CONFIG.COL_RESPOSTAS.SITUACAO_HOJE_HK - 1] = colaborador.situacaoHojeHK || '';
   novaLinha[CONFIG.COL_RESPOSTAS.DATA - 1] = new Date();
